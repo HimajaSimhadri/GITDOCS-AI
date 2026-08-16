@@ -38,10 +38,14 @@ gemini_client = genai.Client(
 chroma_client = chromadb.PersistentClient(
     path="chroma_db"
 )
-
-collection = chroma_client.get_collection(
-    name="gitdocs"
-)
+try:
+    collection = chroma_client.get_collection(
+        name="gitdocs"
+    )
+except Exception:
+    collection = chroma_client.create_collection(
+        name="gitdocs"
+    )
 
 
 # ==========================================
