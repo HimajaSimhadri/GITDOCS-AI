@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sentence_transformers import SentenceTransformer
 from google import genai
 
 from index_repository import index_repository
@@ -29,17 +28,6 @@ if not api_key:
 
 gemini_client = genai.Client(
     api_key=api_key
-)
-
-
-# ==========================================
-# Embedding Model
-# ==========================================
-
-print("Loading embedding model...")
-
-embedding_model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
 )
 
 
@@ -98,6 +86,20 @@ class RepositoryRequest(BaseModel):
 
 
 # ==========================================
+# Gemini Embedding
+# ==========================================
+
+def generate_query_embedding(text):
+
+    response = gemini_client.models.embed_content(
+        model="gemini-embedding-001",
+        contents=text
+    )
+
+    return response.embeddings[0].values
+
+
+# ==========================================
 # Home
 # ==========================================
 
@@ -110,7 +112,7 @@ def home():
 
 
 # ==========================================
-# Index GitHub Repository
+# Index Repository
 # ==========================================
 
 @app.post("/index")
@@ -126,7 +128,9 @@ def index_github_repository(
 
         return {
             "message": "Repository indexed successfully!",
+
             "files": result["files"],
+
             "chunks": result["chunks"]
         }
 
@@ -134,6 +138,7 @@ def index_github_repository(
 
         return {
             "message": "Failed to index repository",
+
             "error": str(error)
         }
 
@@ -154,9 +159,9 @@ def ask_question(
     # Create question embedding
     # ======================================
 
-    question_embedding = embedding_model.encode(
+    question_embedding = generate_query_embedding(
         question
-    ).tolist()
+    )
 
 
     # ======================================
@@ -169,7 +174,7 @@ def ask_question(
             question_embedding
         ],
 
-        n_results=8
+        n_results=3
     )
 
 
@@ -183,7 +188,7 @@ def ask_question(
 
 
     # ======================================
-    # Build context with source files
+    # Build context
     # ======================================
 
     context_parts = []
@@ -206,13 +211,14 @@ def ask_question(
             file_name = "Unknown file"
 
 
-        # Add source to list
-        if file_name != "Unknown file" and file_name not in sources:
+        if (
+            file_name != "Unknown file"
+            and file_name not in sources
+        ):
 
             sources.append(file_name)
 
 
-        # Add file + document to context
         context_parts.append(
             f"FILE: {file_name}\n\n{document}"
         )
@@ -238,24 +244,19 @@ IMPORTANT RULES:
 1. Answer using the repository context.
 2. If the answer is present in the context,
    you MUST answer it.
-3. Do not say you couldn't find the information
-   when the context contains the answer.
-4. Do not invent information.
-5. Keep the answer clear and concise.
-6. If possible, mention the relevant source file.
-7. If the context genuinely does not contain
-   the answer, clearly say that the information
-   was not found in the repository context.
+3. Do not invent information.
+4. Keep the answer clear and concise.
+5. Mention relevant source files when possible.
+6. If the context does not contain the answer,
+   clearly say that it was not found.
 
 REPOSITORY CONTEXT:
 
 {context}
 
-
 USER QUESTION:
 
 {question}
-
 
 ANSWER:
 """

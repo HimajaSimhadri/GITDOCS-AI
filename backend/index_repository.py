@@ -1,22 +1,32 @@
+import os
 import re
 
 import chromadb
-from sentence_transformers import SentenceTransformer
+from dotenv import load_dotenv
+from google import genai
 
 from github_loader import clone_repository
 from repo_reader import read_repository
 
 
-CHROMA_PATH = "chroma_db"
-COLLECTION_NAME = "gitdocs"
+# ==========================================
+# Load environment variables
+# ==========================================
+
+load_dotenv()
+
+api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    raise ValueError("GEMINI_API_KEY not found")
 
 
 # ==========================================
-# Embedding Model
+# Gemini Client
 # ==========================================
 
-embedding_model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
+gemini_client = genai.Client(
+    api_key=api_key
 )
 
 
@@ -24,9 +34,34 @@ embedding_model = SentenceTransformer(
 # ChromaDB
 # ==========================================
 
+CHROMA_PATH = "chroma_db"
+COLLECTION_NAME = "gitdocs"
+
 client = chromadb.PersistentClient(
     path=CHROMA_PATH
 )
+
+
+# ==========================================
+# Generate Gemini Embeddings
+# ==========================================
+
+def generate_embeddings(texts):
+
+    embeddings = []
+
+    for text in texts:
+
+        response = gemini_client.models.embed_content(
+            model="gemini-embedding-001",
+            contents=text
+        )
+
+        embeddings.append(
+            response.embeddings[0].values
+        )
+
+    return embeddings
 
 
 # ==========================================
@@ -43,6 +78,7 @@ def validate_github_url(github_url):
     pattern = r"^https://github\.com/[^/]+/[^/]+/?$"
 
     if not re.match(pattern, github_url.strip()):
+
         raise ValueError(
             "Please enter a valid public GitHub repository URL."
         )
@@ -180,17 +216,13 @@ def index_repository(github_url):
 
             if chunk.strip():
 
-                chunks.append(
-                    chunk
-                )
+                chunks.append(chunk)
 
                 metadatas.append({
                     "file": file_path
                 })
 
-            start += (
-                chunk_size - overlap
-            )
+            start += chunk_size - overlap
 
 
     # --------------------------------------
@@ -206,13 +238,16 @@ def index_repository(github_url):
 
 
     # --------------------------------------
-    # Generate embeddings
+    # Generate Gemini embeddings
     # --------------------------------------
 
-    embeddings = embedding_model.encode(
-        chunks,
-        show_progress_bar=True
-    ).tolist()
+    print(
+        f"Generating embeddings for {len(chunks)} chunks..."
+    )
+
+    embeddings = generate_embeddings(
+        chunks
+    )
 
 
     # --------------------------------------
