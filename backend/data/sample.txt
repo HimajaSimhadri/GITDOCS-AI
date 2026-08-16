@@ -1,0 +1,21 @@
+GitDocs AI is a Retrieval-Augmented Generation application.
+
+The application allows developers to ask questions about GitHub repositories.
+
+GitDocs AI reads source code from a repository and divides the code into smaller chunks.
+
+These chunks are converted into embeddings.
+
+The embeddings are stored in a vector database.
+
+When a user asks a question, the system retrieves the most relevant code chunks.
+
+The retrieved information is then provided to a Large Language Model.
+
+The LLM uses the retrieved context to generate an answer.
+
+The backend of GitDocs AI is built using Python and FastAPI.
+
+The frontend will be built using React.js.
+
+ChromaDB is used as the vector database in the initial version.
