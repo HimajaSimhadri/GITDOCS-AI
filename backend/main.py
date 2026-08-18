@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from google import genai
 
-from index_repository import index_repository
+from backend.index_repository import index_repository
 
 
 # ==========================================

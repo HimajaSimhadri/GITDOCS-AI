@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./App.css";
 
-const BACKEND_URL = "https://https://gitdocs-ai-gyzx.onrender.com";
+const BACKEND_URL = "http://127.0.0.1:8000";
 
 function App() {
   const [repoUrl, setRepoUrl] = useState("");

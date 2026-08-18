@@ -5,8 +5,8 @@ import chromadb
 from dotenv import load_dotenv
 from google import genai
 
-from github_loader import clone_repository
-from repo_reader import read_repository
+from backend.github_loader import clone_repository
+from backend.repo_reader import read_repository
 
 
 # ==========================================
