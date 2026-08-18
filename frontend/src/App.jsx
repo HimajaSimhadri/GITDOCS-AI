@@ -31,6 +31,9 @@ function App() {
     setAnswer("");
 
     try {
+      console.log("Sending repository to backend:", repoUrl);
+      console.log("Backend URL:", BACKEND_URL);
+
       const response = await fetch(`${BACKEND_URL}/index`, {
         method: "POST",
         headers: {
@@ -41,26 +44,33 @@ function App() {
         }),
       });
 
+      console.log("Backend status:", response.status);
+
       const data = await response.json();
 
+      console.log("INDEX RESPONSE:", data);
+
+      // Handle backend errors
       if (!response.ok || data.error) {
-        throw new Error(data.error || "Failed to index repository");
+        throw new Error(
+          data.error ||
+            data.message ||
+            `Backend error: ${response.status}`
+        );
       }
 
       setSources(data.files || 0);
       setChunks(data.chunks || 0);
 
       setIndexStatus(
-        `Repository indexed successfully! ${data.files || 0} files and ${
-          data.chunks || 0
-        } chunks added.`
+        `Repository indexed successfully! ${
+          data.files || 0
+        } files and ${data.chunks || 0} chunks added.`
       );
     } catch (error) {
-      console.error(error);
+      console.error("INDEX ERROR:", error);
 
-      setIndexStatus(
-        "Could not connect to GitDocs AI backend."
-      );
+      setIndexStatus(`Error: ${error.message}`);
     } finally {
       setLoadingIndex(false);
     }
@@ -83,6 +93,9 @@ function App() {
     setAnswer("");
 
     try {
+      console.log("Sending question:", finalQuestion);
+      console.log("Backend URL:", BACKEND_URL);
+
       const response = await fetch(`${BACKEND_URL}/ask`, {
         method: "POST",
         headers: {
@@ -93,19 +106,25 @@ function App() {
         }),
       });
 
+      console.log("Ask backend status:", response.status);
+
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error("Failed to get answer");
+      console.log("ASK RESPONSE:", data);
+
+      if (!response.ok || data.error) {
+        throw new Error(
+          data.error ||
+            data.message ||
+            `Backend error: ${response.status}`
+        );
       }
 
       setAnswer(data.answer || "No answer received.");
     } catch (error) {
-      console.error(error);
+      console.error("ASK ERROR:", error);
 
-      setAnswer(
-        "❌ Could not connect to GitDocs AI backend."
-      );
+      setAnswer(`❌ Error: ${error.message}`);
     } finally {
       setLoadingAnswer(false);
     }
@@ -154,9 +173,13 @@ function App() {
       <header className="navbar">
 
         <div className="brand">
-          <div className="brand-icon">ϟ</div>
+
+          <div className="brand-icon">
+            ϟ
+          </div>
 
           <div>
+
             <div className="brand-name">
               GitDocs <span>AI</span>
             </div>
@@ -164,12 +187,17 @@ function App() {
             <div className="brand-subtitle">
               Repository assistant
             </div>
+
           </div>
+
         </div>
 
         <div className="ai-status">
+
           <span className="status-dot"></span>
+
           AI ready · RAG + Gemini
+
         </div>
 
       </header>
@@ -190,14 +218,21 @@ function App() {
           <div className="panel-content">
 
             <h2>
-              <span className="orange-icon">⌘</span>
+
+              <span className="orange-icon">
+                ⌘
+              </span>
+
               Connect GitHub repository
+
             </h2>
 
             <p className="panel-description">
+
               Point GitDocs AI at a repo. It indexes code,
               docs and structure so answers stay grounded
               in real sources.
+
             </p>
 
 
@@ -207,7 +242,9 @@ function App() {
               className="repo-input"
               type="text"
               value={repoUrl}
-              onChange={(e) => setRepoUrl(e.target.value)}
+              onChange={(e) =>
+                setRepoUrl(e.target.value)
+              }
               placeholder="https://github.com/user/repo"
             />
 
@@ -219,15 +256,18 @@ function App() {
               onClick={indexRepository}
               disabled={loadingIndex}
             >
+
               {loadingIndex
                 ? "Indexing..."
                 : "Index repository"}
+
             </button>
 
 
             {/* Status */}
 
             {indexStatus && (
+
               <div
                 className={`index-status ${
                   indexStatus.includes("successfully")
@@ -237,9 +277,13 @@ function App() {
                     : "error"
                 }`}
               >
+
                 <span className="status-small-dot"></span>
+
                 {indexStatus}
+
               </div>
+
             )}
 
           </div>
@@ -252,6 +296,7 @@ function App() {
           <div className="stats">
 
             <div className="stat">
+
               <div className="stat-number">
                 {sources}
               </div>
@@ -259,10 +304,12 @@ function App() {
               <div className="stat-label">
                 Sources
               </div>
+
             </div>
 
 
             <div className="stat">
+
               <div className="stat-number">
                 {chunks}
               </div>
@@ -270,10 +317,12 @@ function App() {
               <div className="stat-label">
                 Chunks
               </div>
+
             </div>
 
 
             <div className="stat">
+
               <div className="stat-number gemini">
                 Gemini
               </div>
@@ -281,6 +330,7 @@ function App() {
               <div className="stat-label">
                 Model
               </div>
+
             </div>
 
           </div>
@@ -301,9 +351,11 @@ function App() {
             </h1>
 
             <p>
+
               Ask a question about your indexed repository —
               architecture, dependencies, conventions or a
               single function.
+
             </p>
 
           </div>
@@ -320,7 +372,9 @@ function App() {
               <button
                 key={index}
                 className="question-card"
-                onClick={() => askQuestion(item.text)}
+                onClick={() =>
+                  askQuestion(item.text)
+                }
               >
 
                 <span className="question-icon">
@@ -345,11 +399,17 @@ function App() {
           <div className="answer-area">
 
             {loadingAnswer && (
+
               <div className="loading-answer">
+
                 <span className="loading-dot"></span>
+
                 Searching your repository...
+
               </div>
+
             )}
+
 
             {!loadingAnswer && answer && (
 
@@ -392,7 +452,9 @@ function App() {
               onClick={() => askQuestion()}
               disabled={loadingAnswer}
             >
+
               ↑
+
             </button>
 
           </div>
@@ -407,8 +469,13 @@ function App() {
       ================================= */}
 
       <footer className="footer">
-        <span>ϟ</span>
+
+        <span>
+          ϟ
+        </span>
+
         GitDocs AI · Powered by RAG + Gemini
+
       </footer>
 
     </div>
