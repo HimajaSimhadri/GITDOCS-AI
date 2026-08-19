@@ -1,526 +1,294 @@
-\# GitDocs-AI 🤖
+# 🤖 GitDocs AI
 
+**GitDocs AI** is an AI-powered developer assistant that allows users to connect a public GitHub repository and ask natural-language questions about its codebase.
 
+Instead of manually searching through hundreds of files, developers can provide a GitHub repository URL and interact with the codebase through a simple conversational interface.
 
-GitDocs-AI is an AI-powered developer assistant that allows users to connect a GitHub repository and ask questions about its codebase using \*\*Retrieval-Augmented Generation (RAG)\*\*.
+GitDocs AI uses **Retrieval-Augmented Generation (RAG)** to retrieve relevant code and documentation from the repository and provide context-aware answers using **Google Gemini**.
 
+---
 
+## 🚀 Features
 
-Instead of manually searching through multiple files, GitDocs-AI retrieves the most relevant parts of the repository and uses them to generate context-aware answers.
+* 🔗 Connect a public GitHub repository
+* 📥 Automatically clone GitHub repositories
+* 📂 Read and filter supported source files
+* ✂️ Split large files into smaller chunks
+* 🧠 Generate semantic embeddings using Sentence Transformers
+* 🗄️ Store embeddings in ChromaDB
+* 🔎 Perform semantic similarity search
+* 💬 Ask natural-language questions about the repository
+* 📄 Identify relevant source files
+* 🤖 Generate context-aware answers using Google Gemini
+* 🌐 React-based web interface
+* ⚡ FastAPI backend
+* 🔐 Environment-based API key configuration
+* ☁️ Deployable frontend and backend
 
+---
 
-
-\## 🚀 Features
-
-
-
-\* 🔗 Load a GitHub repository
-
-\* 📂 Read and process repository files
-
-\* ✂️ Split source code into manageable chunks
-
-\* 🧠 Generate semantic embeddings
-
-\* 🗄️ Store embeddings using ChromaDB
-
-\* 🔎 Retrieve relevant code based on user queries
-
-\* 💬 Ask questions about a repository using natural language
-
-\* 🌐 Web-based frontend interface
-
-\* 🔐 Environment variables for API credentials
-
-
-
-\## 🏗️ Architecture
-
-
+# 🏗️ System Architecture
 
 ```text
-
-&#x20;                   GitHub Repository
-
-&#x20;                          │
-
-&#x20;                          ▼
-
-&#x20;                   GitHub Loader
-
-&#x20;                          │
-
-&#x20;                          ▼
-
-&#x20;                   Repository Reader
-
-&#x20;                          │
-
-&#x20;                          ▼
-
-&#x20;                    Text Chunking
-
-&#x20;                          │
-
-&#x20;                          ▼
-
-&#x20;                Sentence Transformer
-
-&#x20;                     Embeddings
-
-&#x20;                          │
-
-&#x20;                          ▼
-
-&#x20;                      ChromaDB
-
-&#x20;                   Vector Database
-
-&#x20;                          │
-
-&#x20;                          ▼
-
-&#x20;                    User Question
-
-&#x20;                          │
-
-&#x20;                          ▼
-
-&#x20;                 Similarity Retrieval
-
-&#x20;                          │
-
-&#x20;                          ▼
-
-&#x20;                  Relevant Code Chunks
-
-&#x20;                          │
-
-&#x20;                          ▼
-
-&#x20;                        LLM
-
-&#x20;                          │
-
-&#x20;                          ▼
-
-&#x20;                   AI Generated Answer
-
+                    GitHub Repository
+                           │
+                           ▼
+                    GitHub Loader
+                           │
+                           ▼
+                   Repository Reader
+                           │
+                           ▼
+                    File Filtering
+                           │
+                           ▼
+                     Text Chunking
+                           │
+                           ▼
+                Sentence Transformer
+                   Embedding Model
+                           │
+                           ▼
+                       ChromaDB
+                    Vector Database
+                           │
+                           │
+                    User Question
+                           │
+                           ▼
+                Question Embedding
+                           │
+                           ▼
+                  Semantic Search
+                           │
+                           ▼
+                Relevant Code Chunks
+                           │
+                           ▼
+                   Context Builder
+                           │
+                           ▼
+                    Google Gemini
+                           │
+                           ▼
+                  Generated Answer
+                           │
+                           ▼
+                    Source Files
 ```
 
+---
 
+# 🧠 How GitDocs AI Works
 
-\## 🛠️ Tech Stack
+## 1. Repository Loading
 
+The user provides a public GitHub repository URL.
 
-
-\### Backend
-
-
-
-\* Python
-
-\* ChromaDB
-
-\* Sentence Transformers
-
-\* GitHub Repository Integration
-
-\* REST API
-
-
-
-\### Frontend
-
-
-
-\* React.js
-
-\* JavaScript
-
-\* CSS
-
-
-
-\### AI / RAG
-
-
-
-\* Retrieval-Augmented Generation (RAG)
-
-\* Text Embeddings
-
-\* Vector Similarity Search
-
-\* ChromaDB Vector Store
-
-
-
-\## 📁 Project Structure
-
-
+GitDocs AI clones the repository and prepares it for processing.
 
 ```text
+GitHub URL
+     ↓
+Clone Repository
+```
 
+---
+
+## 2. Repository Reading
+
+The repository is scanned recursively.
+
+GitDocs AI extracts supported source-code and documentation files while ignoring unnecessary directories such as:
+
+* `.git`
+* `node_modules`
+* `venv`
+* `__pycache__`
+* `dist`
+* `build`
+
+Supported file types include:
+
+```text
+.py
+.js
+.jsx
+.ts
+.tsx
+.java
+.html
+.css
+.json
+.md
+.sql
+```
+
+---
+
+## 3. Text Chunking
+
+Large source files are divided into smaller overlapping chunks.
+
+The current implementation uses:
+
+```text
+Chunk size: 1000 characters
+Overlap:    200 characters
+```
+
+This allows GitDocs AI to retrieve smaller, relevant sections of a repository instead of processing an entire file for every question.
+
+---
+
+## 4. Embedding Generation
+
+Each text chunk is converted into a numerical vector using the Sentence Transformers model:
+
+```text
+all-MiniLM-L6-v2
+```
+
+These embeddings capture the semantic meaning of the source-code and documentation.
+
+---
+
+## 5. Vector Storage
+
+The generated embeddings are stored in **ChromaDB**.
+
+Each stored chunk contains:
+
+* Chunk ID
+* Document content
+* Embedding
+* Source file metadata
+
+Example:
+
+```text
+Chunk
+ ├── ID
+ ├── Code / Documentation
+ ├── Embedding
+ └── Source File
+```
+
+---
+
+## 6. Question Retrieval
+
+When the user asks a question, GitDocs AI generates an embedding for the question.
+
+The question embedding is compared with the stored repository embeddings.
+
+The most relevant chunks are retrieved from ChromaDB.
+
+```text
+User Question
+      ↓
+Question Embedding
+      ↓
+ChromaDB Similarity Search
+      ↓
+Top Relevant Chunks
+```
+
+---
+
+## 7. Context Building
+
+The retrieved chunks are combined into a context containing the relevant source files and code.
+
+GitDocs AI also keeps track of the source files associated with the retrieved chunks.
+
+---
+
+## 8. AI Response Generation
+
+The retrieved repository context is provided to **Google Gemini**.
+
+Gemini generates a response based on the retrieved repository information.
+
+This allows GitDocs AI to answer questions such as:
+
+* What is the purpose of this project?
+* What frontend technology is being used?
+* Where is authentication implemented?
+* Which file handles routing?
+* How is the database configured?
+* Which API creates a new user?
+* How does the application process requests?
+* What does this file do?
+
+---
+
+# 🛠️ Tech Stack
+
+## Frontend
+
+* React.js
+* JavaScript
+* CSS
+* Vite
+* Axios
+
+## Backend
+
+* Python
+* FastAPI
+* Uvicorn
+* Pydantic
+
+## AI / RAG
+
+* Retrieval-Augmented Generation (RAG)
+* Sentence Transformers
+* `all-MiniLM-L6-v2`
+* Google Gemini
+
+## Vector Database
+
+* ChromaDB
+
+## Repository Integration
+
+* GitPython
+* GitHub repositories
+
+## Deployment
+
+* Render
+
+---
+
+# 📁 Project Structure
+
+```text
 GITDOCS-AI/
-
 │
-
 ├── backend/
-
 │   ├── main.py
-
-│   ├── github\_loader.py
-
-│   ├── repo\_reader.py
-
-│   ├── ingest\_repo.py
-
-│   ├── index\_repository.py
-
-│   ├── test\_github.py
-
-│   └── test\_reader.py
-
+│   ├── github_loader.py
+│   ├── repo_reader.py
+│   ├── index_repository.py
+│   ├── ingest_repo.py
+│   ├── test_github.py
+│   ├── test_reader.py
+│   ├── requirements.txt
+│   └── .gitignore
 │
-
 ├── frontend/
-
-│   └── src/
-
-│       ├── App.jsx
-
-│       └── App.css
-
+│   ├── src/
+│   │   ├── App.jsx
+│   │   ├── App.css
+│   │   └── ...
+│   │
+│   ├── package.json
+│   └── ...
 │
-
 ├── .gitignore
-
 ├── .env.example
-
 └── README.md
-
 ```
-
-
-
-\## ⚙️ How It Works
-
-
-
-\### 1. Repository Loading
-
-
-
-The user provides a GitHub repository URL.
-
-
-
-GitDocs-AI clones the repository locally and prepares it for processing.
-
-
-
-\### 2. Repository Reading
-
-
-
-The application scans the repository and extracts relevant source files while ignoring unnecessary files.
-
-
-
-\### 3. Chunking
-
-
-
-Large source files are divided into smaller chunks.
-
-
-
-This makes it possible to retrieve only the sections that are relevant to a user's question.
-
-
-
-\### 4. Embedding Generation
-
-
-
-Each chunk is converted into a numerical vector using a Sentence Transformer model.
-
-
-
-These vectors represent the semantic meaning of the code and documentation.
-
-
-
-\### 5. Vector Storage
-
-
-
-The generated embeddings are stored in \*\*ChromaDB\*\*, which acts as the vector database.
-
-
-
-\### 6. Retrieval
-
-
-
-When a user asks a question, the question is converted into an embedding.
-
-
-
-GitDocs-AI searches ChromaDB for the most semantically similar code chunks.
-
-
-
-\### 7. AI Response
-
-
-
-The retrieved context is provided to the language model, allowing it to generate an answer based on the actual repository content.
-
-
-
-\## 💻 Installation
-
-
-
-\### Clone the repository
-
-
-
-```bash
-
-git clone https://github.com/HimajaSimhadri/GITDOCS-AI.git
-
-cd GITDOCS-AI
-
-```
-
-
-
-\### Create a virtual environment
-
-
-
-```bash
-
-python -m venv venv
-
-```
-
-
-
-Activate it on Windows:
-
-
-
-```powershell
-
-venv\\Scripts\\activate
-
-```
-
-
-
-\### Install backend dependencies
-
-
-
-```bash
-
-pip install -r backend/requirements.txt
-
-```
-
-
-
-\## 🔐 Environment Variables
-
-
-
-Create a `.env` file inside the backend directory:
-
-
-
-```text
-
-backend/.env
-
-```
-
-
-
-Add your required API credentials:
-
-
-
-```text
-
-GCP\_API\_KEY=your\_api\_key\_here
-
-```
-
-
-
-\*\*Never commit your `.env` file to GitHub.\*\*
-
-
-
-The project uses `.gitignore` to prevent environment files and generated data from being committed.
-
-
-
-\## ▶️ Running the Project
-
-
-
-\### Start the backend
-
-
-
-From the project root:
-
-
-
-```bash
-
-python backend/main.py
-
-```
-
-
-
-\### Start the frontend
-
-
-
-Navigate to the frontend directory:
-
-
-
-```bash
-
-cd frontend
-
-```
-
-
-
-Install dependencies:
-
-
-
-```bash
-
-npm install
-
-```
-
-
-
-Start the development server:
-
-
-
-```bash
-
-npm run dev
-
-```
-
-
-
-Then open the local URL shown by the frontend development server.
-
-
-
-\## 🧪 Testing
-
-
-
-The backend contains test scripts for repository loading and reading:
-
-
-
-```bash
-
-python backend/test\_github.py
-
-```
-
-
-
-```bash
-
-python backend/test\_reader.py
-
-```
-
-
-
-\## 🎯 Why This Project?
-
-
-
-Large software repositories can contain hundreds or thousands of files, making it difficult for developers to quickly understand an unfamiliar codebase.
-
-
-
-GitDocs-AI solves this problem by combining:
-
-
-
-\*\*GitHub + Embeddings + Vector Search + RAG + LLMs\*\*
-
-
-
-This allows developers to interact with a codebase using natural language instead of manually searching through files.
-
-
-
-\## 🔮 Future Improvements
-
-
-
-\* Support multiple GitHub repositories
-
-\* Add authentication
-
-\* Improve code-aware chunking
-
-\* Add conversation history
-
-\* Support repository documentation generation
-
-\* Add code explanation and debugging modes
-
-\* Improve retrieval using hybrid search
-
-\* Deploy the application to the cloud
-
-\* Add CI/CD pipeline
-
-\* Add support for private repositories
-
-
-
-\## 👩‍💻 Author
-
-
-
-\*\*Himaja Simhadri\*\*
-
-
-
-GitHub: \[HimajaSimhadri](https://github.com/HimajaSimhadri)
-
-
-
-\## ⭐ Project
-
-
-
-If you find this project useful, consider giving it a ⭐ on GitHub.
-
-
 
