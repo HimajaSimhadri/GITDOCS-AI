@@ -1,36 +1,18 @@
 import os
 import re
+import pickle
 
 import chromadb
-from dotenv import load_dotenv
-from google import genai
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+
 from github_loader import clone_repository
 from repo_reader import read_repository
 
-# ==========================================
-# Load environment variables
-# ==========================================
 
-load_dotenv()
-
-api_key = os.getenv("GEMINI_API_KEY")
-
-if not api_key:
-    raise ValueError("GEMINI_API_KEY not found")
-
-
-# ==========================================
-# Gemini Client
-# ==========================================
-
-gemini_client = genai.Client(
-    api_key=api_key
-)
-
-
-# ==========================================
-# ChromaDB
-# ==========================================
+# =========================================================
+# CONFIGURATION
+# =========================================================
 
 CHROMA_PATH = "chroma_db"
 COLLECTION_NAME = "gitdocs"
@@ -40,66 +22,50 @@ client = chromadb.PersistentClient(
 )
 
 
-# ==========================================
-# Generate Gemini Embeddings
-# ==========================================
-
-def generate_embeddings(texts):
-
-    embeddings = []
-
-    for text in texts:
-
-        response = gemini_client.models.embed_content(
-            model="gemini-embedding-001",
-            contents=text
-        )
-
-        embeddings.append(
-            response.embeddings[0].values
-        )
-
-    return embeddings
-
-
-# ==========================================
-# Validate GitHub URL
-# ==========================================
+# =========================================================
+# VALIDATE GITHUB URL
+# =========================================================
 
 def validate_github_url(github_url):
 
     if not github_url:
+
         raise ValueError(
             "GitHub repository URL is required."
         )
 
     pattern = r"^https://github\.com/[^/]+/[^/]+/?$"
 
-    if not re.match(pattern, github_url.strip()):
+    if not re.match(
+        pattern,
+        github_url.strip()
+    ):
 
         raise ValueError(
             "Please enter a valid public GitHub repository URL."
         )
 
 
-# ==========================================
-# Index Repository
-# ==========================================
+# =========================================================
+# INDEX REPOSITORY
+# =========================================================
 
 def index_repository(github_url):
 
     github_url = github_url.strip()
 
-    # --------------------------------------
-    # Validate URL
-    # --------------------------------------
+    # =====================================================
+    # VALIDATE URL
+    # =====================================================
 
-    validate_github_url(github_url)
+    validate_github_url(
+        github_url
+    )
 
 
-    # --------------------------------------
-    # Clone repository
-    # --------------------------------------
+    # =====================================================
+    # CLONE REPOSITORY
+    # =====================================================
 
     try:
 
@@ -109,31 +75,14 @@ def index_repository(github_url):
 
     except Exception as error:
 
-        error_message = str(error).lower()
-
-        if (
-            "repository not found" in error_message
-            or "not found" in error_message
-            or "could not read from remote repository"
-            in error_message
-        ):
-
-            raise ValueError(
-                "Repository not found. "
-                "Make sure the GitHub URL is correct "
-                "and the repository is public."
-            )
-
         raise ValueError(
-            "Could not clone the repository. "
-            "Make sure the repository is public "
-            "and the URL is correct."
+            f"Could not clone repository: {error}"
         )
 
 
-    # --------------------------------------
-    # Read repository files
-    # --------------------------------------
+    # =====================================================
+    # READ REPOSITORY
+    # =====================================================
 
     try:
 
@@ -148,9 +97,9 @@ def index_repository(github_url):
         )
 
 
-    # --------------------------------------
-    # Check files
-    # --------------------------------------
+    # =====================================================
+    # CHECK DOCUMENTS
+    # =====================================================
 
     if not documents:
 
@@ -159,52 +108,33 @@ def index_repository(github_url):
         )
 
 
-    # --------------------------------------
-    # Get ChromaDB collection
-    # --------------------------------------
-
-    try:
-
-        collection = client.get_collection(
-            name=COLLECTION_NAME
-        )
-
-    except Exception:
-
-        collection = client.create_collection(
-            name=COLLECTION_NAME
-        )
+    print(
+        f"Found {len(documents)} useful files."
+    )
 
 
-    # --------------------------------------
-    # Clear old GitDocs data
-    # --------------------------------------
-
-    existing = collection.get()
-
-    if existing["ids"]:
-
-        collection.delete(
-            ids=existing["ids"]
-        )
-
-
-    # --------------------------------------
-    # Create chunks
-    # --------------------------------------
+    # =====================================================
+    # CREATE CHUNKS
+    # =====================================================
 
     chunks = []
+
     metadatas = []
+
 
     for document in documents:
 
         file_path = document["path"]
+
         content = document["content"]
 
-        chunk_size = 1000
+
+        chunk_size = 2000
+
         overlap = 200
 
         start = 0
+
 
         while start < len(content):
 
@@ -212,55 +142,159 @@ def index_repository(github_url):
 
             chunk = content[start:end]
 
+
             if chunk.strip():
 
-                chunks.append(chunk)
+                chunks.append(
+                    chunk
+                )
 
                 metadatas.append({
+
                     "file": file_path
+
                 })
 
-            start += chunk_size - overlap
+
+            start += (
+                chunk_size - overlap
+            )
 
 
-    # --------------------------------------
-    # Check chunks
-    # --------------------------------------
+    # =====================================================
+    # CHECK CHUNKS
+    # =====================================================
 
     if not chunks:
 
         raise ValueError(
-            "No readable content found "
-            "in the repository."
+            "No readable content found."
         )
 
 
-    # --------------------------------------
-    # Generate Gemini embeddings
-    # --------------------------------------
+    # =====================================================
+    # LIMIT CHUNKS
+    # =====================================================
+
+    MAX_CHUNKS = 300
+
+
+    if len(chunks) > MAX_CHUNKS:
+
+        print(
+            f"Repository generated "
+            f"{len(chunks)} chunks."
+        )
+
+        print(
+            f"Limiting to "
+            f"{MAX_CHUNKS} chunks."
+        )
+
+        chunks = chunks[
+            :MAX_CHUNKS
+        ]
+
+        metadatas = metadatas[
+            :MAX_CHUNKS
+        ]
+
 
     print(
-        f"Generating embeddings for {len(chunks)} chunks..."
-    )
-
-    embeddings = generate_embeddings(
-        chunks
+        f"Creating TF-IDF vectors for "
+        f"{len(chunks)} chunks..."
     )
 
 
-    # --------------------------------------
-    # Create IDs
-    # --------------------------------------
+    # =====================================================
+    # CREATE TF-IDF VECTORIZER
+    # =====================================================
+
+    vectorizer = TfidfVectorizer(
+
+        max_features=768,
+
+        stop_words="english"
+
+    )
+
+
+    try:
+
+        matrix = vectorizer.fit_transform(
+            chunks
+        )
+
+    except ValueError as error:
+
+        raise ValueError(
+            f"Could not create TF-IDF vectors: {error}"
+        )
+
+
+    embeddings = (
+        matrix
+        .toarray()
+        .tolist()
+    )
+
+
+    print(
+        f"TF-IDF vector dimension: "
+        f"{len(embeddings[0])}"
+    )
+
+
+    # =====================================================
+    # DELETE OLD CHROMA COLLECTION
+    # =====================================================
+
+    try:
+
+        client.delete_collection(
+            name=COLLECTION_NAME
+        )
+
+        print(
+            "Old ChromaDB collection deleted."
+        )
+
+    except Exception:
+
+        print(
+            "No previous ChromaDB collection found."
+        )
+
+
+    # =====================================================
+    # CREATE NEW COLLECTION
+    # =====================================================
+
+    collection = client.create_collection(
+
+        name=COLLECTION_NAME
+
+    )
+
+
+    # =====================================================
+    # CREATE IDS
+    # =====================================================
 
     ids = [
+
         f"chunk-{i}"
-        for i in range(len(chunks))
+
+        for i in range(
+            len(chunks)
+        )
+
     ]
 
 
-    # --------------------------------------
-    # Store in ChromaDB
-    # --------------------------------------
+    # =====================================================
+    # STORE IN CHROMADB
+    # =====================================================
 
     collection.add(
 
@@ -271,12 +305,68 @@ def index_repository(github_url):
         embeddings=embeddings,
 
         metadatas=metadatas
+
     )
 
 
-    # --------------------------------------
-    # Return result
-    # --------------------------------------
+    print(
+        f"Stored {len(chunks)} chunks in ChromaDB."
+    )
+
+
+    # =====================================================
+    # SAVE TF-IDF VECTORIZER
+    # =====================================================
+
+    os.makedirs(
+
+        CHROMA_PATH,
+
+        exist_ok=True
+
+    )
+
+
+    vectorizer_path = os.path.join(
+
+        CHROMA_PATH,
+
+        "vectorizer.pkl"
+
+    )
+
+
+    with open(
+
+        vectorizer_path,
+
+        "wb"
+
+    ) as file:
+
+        pickle.dump(
+
+            vectorizer,
+
+            file
+
+        )
+
+
+    print(
+        f"Vectorizer saved to: "
+        f"{vectorizer_path}"
+    )
+
+
+    # =====================================================
+    # SUCCESS
+    # =====================================================
+
+    print(
+        "Repository indexed successfully!"
+    )
+
 
     return {
 
