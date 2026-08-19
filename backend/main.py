@@ -3,6 +3,7 @@ import pickle
 import time
 
 import chromadb
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,20 +19,18 @@ from index_repository import index_repository
 
 load_dotenv()
 
-api_key = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-if not api_key:
-    raise ValueError(
-        "GEMINI_API_KEY not found in .env"
-    )
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY not found in .env")
 
 
 # ============================================================
-# GEMINI CLIENT
+# GEMINI
 # ============================================================
 
 gemini_client = genai.Client(
-    api_key=api_key
+    api_key=GEMINI_API_KEY
 )
 
 
@@ -47,25 +46,34 @@ chroma_client = chromadb.PersistentClient(
 )
 
 
-try:
+def get_collection():
+    """
+    ALWAYS get the latest ChromaDB collection.
 
-    collection = chroma_client.get_collection(
-        name=COLLECTION_NAME
-    )
+    Important:
+    index_repository() can delete and recreate the collection.
+    Therefore we must NOT keep a global collection object.
+    """
 
-    print(
-        f"ChromaDB collection loaded: {COLLECTION_NAME}"
-    )
+    try:
 
-except Exception:
+        collection = chroma_client.get_collection(
+            name=COLLECTION_NAME
+        )
 
-    collection = chroma_client.create_collection(
-        name=COLLECTION_NAME
-    )
+        print(
+            f"ChromaDB collection loaded: {COLLECTION_NAME}"
+        )
 
-    print(
-        f"ChromaDB collection created: {COLLECTION_NAME}"
-    )
+        return collection
+
+    except Exception as error:
+
+        print(
+            "ChromaDB collection does not exist yet."
+        )
+
+        return None
 
 
 # ============================================================
@@ -74,7 +82,7 @@ except Exception:
 
 app = FastAPI(
     title="GitDocs AI",
-    description="RAG-powered GitHub Repository Assistant"
+    description="AI assistant for GitHub repositories"
 )
 
 
@@ -126,19 +134,17 @@ def home():
 # ============================================================
 
 @app.post("/index")
-def index_github_repository(
+def index_repository_endpoint(
     data: RepositoryRequest
 ):
 
-    print()
-    print("=" * 50)
-    print("INDEXING REPOSITORY")
-    print(
-        f"URL: {data.url}"
-    )
-    print("=" * 50)
-
     try:
+
+        print()
+        print("=" * 60)
+        print("INDEXING REPOSITORY")
+        print("URL:", data.url)
+        print("=" * 60)
 
         result = index_repository(
             data.url
@@ -158,23 +164,21 @@ def index_github_repository(
 
             "chunks":
             result["chunks"]
-
         }
 
     except Exception as error:
 
         print()
-        print(
-            "INDEX ERROR:",
-            str(error)
-        )
+        print("=" * 60)
+        print("INDEX ERROR")
+        print(error)
+        print("=" * 60)
 
         raise HTTPException(
 
             status_code=500,
 
             detail=str(error)
-
         )
 
 
@@ -190,12 +194,10 @@ def ask_question(
     question = data.question.strip()
 
     print()
-    print("=" * 50)
+    print("=" * 60)
     print("NEW QUESTION")
-    print(
-        f"Question: {question}"
-    )
-    print("=" * 50)
+    print("Question:", question)
+    print("=" * 60)
 
 
     # --------------------------------------------------------
@@ -209,14 +211,13 @@ def ask_question(
             status_code=400,
 
             detail="Question cannot be empty."
-
         )
 
 
     try:
 
         # ====================================================
-        # LOAD TF-IDF VECTORIZER
+        # LOAD VECTORIZER
         # ====================================================
 
         vectorizer_path = os.path.join(
@@ -224,12 +225,6 @@ def ask_question(
             CHROMA_PATH,
 
             "vectorizer.pkl"
-
-        )
-
-
-        print(
-            "Loading TF-IDF vectorizer..."
         )
 
 
@@ -238,9 +233,15 @@ def ask_question(
         ):
 
             raise ValueError(
+
                 "No indexed repository found. "
-                "Please index a GitHub repository first."
+                "Please index a repository first."
             )
+
+
+        print(
+            "Loading TF-IDF vectorizer..."
+        )
 
 
         with open(
@@ -265,16 +266,16 @@ def ask_question(
         )
 
 
-        question_matrix = (
-            vectorizer.transform(
+        question_vector = (
+
+            vectorizer
+
+            .transform(
                 [question]
             )
-        )
 
-
-        question_vector = (
-            question_matrix
             .toarray()
+
             .tolist()[0]
         )
 
@@ -284,42 +285,79 @@ def ask_question(
         )
 
         print(
-            f"Vector dimensions: "
-            f"{len(question_vector)}"
+            "Vector dimensions:",
+            len(question_vector)
         )
 
 
         # ====================================================
-        # CHECK CHROMADB
+        # IMPORTANT FIX
+        # GET FRESH CHROMA COLLECTION
         # ====================================================
 
         print(
-            f"Chroma collection: "
-            f"{COLLECTION_NAME}"
+            "Loading latest ChromaDB collection..."
         )
 
 
-        collection_count = (
-            collection.count()
-        )
+        collection = get_collection()
+
+
+        if collection is None:
+
+            raise ValueError(
+
+                "ChromaDB collection not found. "
+                "Please index the repository again."
+            )
+
+
+        # ====================================================
+        # CHECK COLLECTION
+        # ====================================================
+
+        try:
+
+            collection_count = (
+                collection.count()
+            )
+
+        except Exception as error:
+
+            print(
+                "Could not read ChromaDB collection:",
+                error
+            )
+
+            raise ValueError(
+
+                "ChromaDB collection is unavailable. "
+                "Please index the repository again."
+            )
 
 
         print(
-            f"Documents in Chroma: "
-            f"{collection_count}"
+            "Chroma collection:",
+            COLLECTION_NAME
+        )
+
+        print(
+            "Documents in Chroma:",
+            collection_count
         )
 
 
         if collection_count == 0:
 
             raise ValueError(
-                "ChromaDB is empty. "
-                "Please index a repository first."
+
+                "ChromaDB collection is empty. "
+                "Please index the repository again."
             )
 
 
         # ====================================================
-        # SEARCH CHROMADB
+        # SEARCH CHROMA
         # ====================================================
 
         print(
@@ -330,50 +368,40 @@ def ask_question(
         results = collection.query(
 
             query_embeddings=[
+
                 question_vector
+
             ],
 
             n_results=min(
                 5,
                 collection_count
-            )
+            ),
 
+            include=[
+                "documents",
+                "metadatas",
+                "distances"
+            ]
         )
 
-
-        # ====================================================
-        # CHECK RESULTS
-        # ====================================================
 
         documents = results.get(
             "documents",
             [[]]
-        )
+        )[0]
+
 
         metadatas = results.get(
             "metadatas",
             [[]]
-        )
+        )[0]
 
 
-        if not documents or not documents[0]:
-
-            raise ValueError(
-                "No relevant repository content "
-                "was found for this question."
-            )
-
-
-        documents = documents[0]
-
-
-        if metadatas and metadatas[0]:
-
-            metadatas = metadatas[0]
-
-        else:
-
-            metadatas = []
+        distances = results.get(
+            "distances",
+            [[]]
+        )[0]
 
 
         print()
@@ -382,9 +410,25 @@ def ask_question(
         )
 
         print(
-            f"Results returned: "
-            f"{len(documents)}"
+            "Results returned:",
+            len(documents)
         )
+
+
+        # ====================================================
+        # NO RESULTS
+        # ====================================================
+
+        if not documents:
+
+            return {
+
+                "answer":
+                "I could not find relevant information "
+                "in the indexed repository.",
+
+                "sources": []
+            }
 
 
         # ====================================================
@@ -400,27 +444,50 @@ def ask_question(
             documents
         ):
 
-            # -----------------------------------------------
-            # Metadata
-            # -----------------------------------------------
-
             if index < len(metadatas):
 
-                metadata = metadatas[index]
-
-                file_name = metadata.get(
-                    "file",
-                    "Unknown file"
+                metadata = (
+                    metadatas[index]
+                    or {}
                 )
 
             else:
 
-                file_name = "Unknown file"
+                metadata = {}
 
 
-            # -----------------------------------------------
-            # Sources
-            # -----------------------------------------------
+            file_name = metadata.get(
+
+                "file",
+
+                "Unknown file"
+            )
+
+
+            if index < len(distances):
+
+                distance = distances[index]
+
+            else:
+
+                distance = None
+
+
+            print()
+            print(
+                f"--- RESULT {index + 1} ---"
+            )
+
+            print(
+                "FILE:",
+                file_name
+            )
+
+            print(
+                "DISTANCE:",
+                distance
+            )
+
 
             if file_name not in sources:
 
@@ -429,29 +496,13 @@ def ask_question(
                 )
 
 
-            # -----------------------------------------------
-            # Debug output
-            # -----------------------------------------------
-
-            print()
-            print(
-                f"--- RESULT {index + 1} ---"
-            )
-
-            print(
-                f"FILE: {file_name}"
-            )
-
-
-            # -----------------------------------------------
-            # Context
-            # -----------------------------------------------
-
             context_parts.append(
 
-                f"FILE: {file_name}\n\n"
-                f"{document}"
+                f"""
+FILE: {file_name}
 
+{document}
+"""
             )
 
 
@@ -461,90 +512,69 @@ def ask_question(
 
 
         # ====================================================
-        # LIMIT CONTEXT
-        # ====================================================
-
-        # Prevent extremely large prompts.
-
-        MAX_CONTEXT_LENGTH = 12000
-
-
-        if len(context) > MAX_CONTEXT_LENGTH:
-
-            context = context[
-                :MAX_CONTEXT_LENGTH
-            ]
-
-
-        # ====================================================
         # GEMINI PROMPT
         # ====================================================
 
         prompt = f"""
-You are GitDocs AI.
+You are GitDocs AI, an AI assistant that understands
+GitHub repositories.
 
-You are an AI assistant that answers questions
-about a software repository.
-
-You MUST use the repository context below.
+Answer the user's question using ONLY the repository
+context provided below.
 
 IMPORTANT RULES:
 
-1. Use only the repository context.
-2. Do not invent information.
-3. Answer clearly and directly.
-4. If the answer exists in the context,
-   explain it accurately.
-5. Mention relevant source files.
-6. If the answer cannot be determined from
-   the context, say:
+1. Do not invent information.
+2. Do not use outside knowledge.
+3. If the answer exists in the context, explain it clearly.
+4. Mention the relevant source file names.
+5. If the answer cannot be determined from the context,
+   clearly say that it was not found.
+6. Prefer a concise but useful answer.
+7. When possible, explain how the relevant code works.
 
-   "I could not find this information
-   in the indexed repository."
-
-7. Do not claim that something exists in the
-   repository unless the context supports it.
-
-REPOSITORY CONTEXT:
+==================================================
+REPOSITORY CONTEXT
+==================================================
 
 {context}
 
-USER QUESTION:
+==================================================
+USER QUESTION
+==================================================
 
 {question}
 
-ANSWER:
+==================================================
+ANSWER
+==================================================
 """
 
 
         # ====================================================
-        # GEMINI
+        # GEMINI WITH RETRY
         # ====================================================
-
-        print()
-        print(
-            "Sending context to Gemini..."
-        )
-
 
         response = None
 
+        max_attempts = 2
 
-        # ----------------------------------------------------
-        # ONLY TWO ATTEMPTS
-        # ----------------------------------------------------
 
-        for attempt in range(2):
+        for attempt in range(
+            1,
+            max_attempts + 1
+        ):
 
             try:
 
                 print(
                     f"Gemini attempt "
-                    f"{attempt + 1}/2"
+                    f"{attempt}/{max_attempts}"
                 )
 
 
                 response = (
+
                     gemini_client
                     .models
                     .generate_content(
@@ -552,7 +582,6 @@ ANSWER:
                         model="gemini-3.6-flash",
 
                         contents=prompt
-
                     )
                 )
 
@@ -571,7 +600,6 @@ ANSWER:
                 )
 
 
-                print()
                 print(
                     "Gemini ERROR:"
                 )
@@ -581,105 +609,55 @@ ANSWER:
                 )
 
 
-                # --------------------------------------------
-                # Retry once
-                # --------------------------------------------
-
-                if attempt == 0:
+                if attempt < max_attempts:
 
                     print(
                         "Gemini temporarily unavailable."
                     )
 
-                    print(
-                        "Waiting 2 seconds before retry..."
-                    )
-
-                    time.sleep(2)
-
+                    time.sleep(3)
 
                 else:
 
-                    # ----------------------------------------
-                    # Final failure
-                    # ----------------------------------------
-
-                    if (
-                        "503" in error_message
-                        or
-                        "UNAVAILABLE"
-                        in error_message
-                    ):
-
-                        raise HTTPException(
-
-                            status_code=503,
-
-                            detail=(
-                                "Gemini is temporarily "
-                                "unavailable. Please try "
-                                "the question again."
-                            )
-
-                        )
-
-
-                    raise HTTPException(
-
-                        status_code=500,
-
-                        detail=(
-                            "Gemini error: "
-                            + error_message
-                        )
-
-                    )
+                    raise
 
 
         # ====================================================
-        # CHECK RESPONSE
+        # GEMINI RESPONSE
         # ====================================================
 
         if response is None:
 
-            raise HTTPException(
-
-                status_code=503,
-
-                detail=(
-                    "Gemini did not return a response."
-                )
-
+            raise ValueError(
+                "Gemini did not return a response."
             )
 
 
-        answer = response.text
+        answer = getattr(
+
+            response,
+
+            "text",
+
+            None
+        )
 
 
         if not answer:
 
-            raise HTTPException(
+            answer = (
 
-                status_code=500,
-
-                detail=(
-                    "Gemini returned an empty answer."
-                )
-
+                "Gemini returned an empty response."
             )
 
 
-        # ====================================================
-        # SUCCESS
-        # ====================================================
-
-        print()
         print(
             "Answer generated successfully."
         )
 
         print(
-            f"Sources: {sources}"
+            "Sources:",
+            sources
         )
 
         print(
@@ -687,18 +665,17 @@ ANSWER:
         )
 
 
+        # ====================================================
+        # RETURN
+        # ====================================================
+
         return {
 
             "answer": answer,
 
             "sources": sources
-
         }
 
-
-    # ========================================================
-    # GENERAL ERROR
-    # ========================================================
 
     except HTTPException:
 
@@ -709,15 +686,19 @@ ANSWER:
 
         print()
         print(
-            "ASK ERROR:"
+            "========== ASK ERROR =========="
         )
 
         print(
-            str(error)
+            type(error).__name__
         )
 
         print(
-            "=" * 50
+            error
+        )
+
+        print(
+            "==============================="
         )
 
 
@@ -726,5 +707,4 @@ ANSWER:
             status_code=500,
 
             detail=str(error)
-
         )
